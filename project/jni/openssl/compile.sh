@@ -1,6 +1,6 @@
 #!/bin/sh
 
-if [ -z "$ARCH_LIST" ]; then
+if [ -z "$ARCH_LIST" ] || [ "$ARCH_LIST" = "all" ]; then
 	ARCH_LIST="arm64-v8a armeabi-v7a x86_64 x86"
 fi
 
@@ -72,10 +72,10 @@ build() {
 
 	cd ../..
 
-	rm -rf lib-$ARCH
-	mkdir -p lib-$ARCH
-	cp build/$ARCH/libcrypto.so.sdl.1.so lib-${ARCH}/libcrypto.so.sdl.1.so || exit 1
-	cp build/$ARCH/libssl.so.sdl.1.so lib-${ARCH}/libssl.so.sdl.1.so || exit 1
+	rm -rf lib/$ARCH
+	mkdir -p lib/$ARCH
+	cp build/$ARCH/libcrypto.so.sdl.1.so lib/${ARCH}/libcrypto.so.sdl.1.so || exit 1
+	cp build/$ARCH/libssl.so.sdl.1.so lib/${ARCH}/libssl.so.sdl.1.so || exit 1
 }
 
 

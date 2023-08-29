@@ -42,5 +42,3 @@ TODO, which will get actually done
 - OpenLieroX: always dig while tapping Jump button, not just when in air.
 
 - SuperTux: Level editor is unusable.
-
-- SuperTux: get_attrib_location() and get_uniform_location() should not be called for each render operation.

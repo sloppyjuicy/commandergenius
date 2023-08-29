@@ -2,11 +2,15 @@
 
 LOCAL_PATH=`dirname $0`
 LOCAL_PATH=`cd $LOCAL_PATH && pwd`
+
 VER=build
+
+export CMAKE_BUILD_PARALLEL_LEVEL=$BUILD_NUM_CPUS
 
 [ -d openttd-$VER-$1 ] || mkdir -p openttd-$VER-$1/bin/baseset
 
 export ARCH=$1
+[ -z "$BUILD_NUM_CPUS" ] && $BUILD_NUM_CPUS=8
 
 [ -e openttd-$VER-$1/Makefile ] || {
 	CMAKE_SDL=openttd-$VER-$1/cmake/AndroidSDL.cmake
@@ -79,7 +83,15 @@ export ARCH=$1
 		echo "set_target_properties(${TARGET} PROPERTIES IMPORTED_LOCATION "'${'"${TARGET}"'_LIBRARY})' >> $CMAKE_SDL
 	done
 
-	cmake \
+	if [ -n "${CMAKE_BIN_LOC}" ]; then
+		NINJA_PATH=${CMAKE_BIN_LOC}/ninja
+	else
+		NINJA_PATH=$(which ninja)
+	fi
+	NINJA_ARGS=
+	[ -n "$NINJA_PATH" ] && NINJA_ARGS="-DCMAKE_MAKE_PROGRAM=$NINJA_PATH -GNinja"
+
+	${CMAKE_BIN_LOC}cmake \
 		-DCMAKE_MODULE_PATH=$LOCAL_PATH/openttd-$VER-$1/cmake \
 		-DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
 		-DANDROID_ABI=$1 \
@@ -88,12 +100,23 @@ export ARCH=$1
 		-DGLOBAL_DIR="." \
 		-DHOST_BINARY_DIR=$LOCAL_PATH/build-tools \
 		-DCMAKE_BUILD_TYPE=RelWithDebInfo \
-		-B openttd-$VER-$1 src
+		-DCMAKE_PREFIX_PATH=$LOCAL_PATH/../../iconv/src/$ARCH/ \
+		"$([ -n "$CMAKE_C_FLAGS_RELWITHDEBINFO" ] && echo -DCMAKE_C_FLAGS_RELWITHDEBINFO="$CMAKE_C_FLAGS_RELWITHDEBINFO")" \
+		"$([ -n "$CMAKE_CXX_FLAGS_RELWITHDEBINFO" ] && echo -DCMAKE_CXX_FLAGS_RELWITHDEBINFO="$CMAKE_CXX_FLAGS_RELWITHDEBINFO")" \
+		$NINJA_ARGS \
+		-B ./openttd-$VER-$1 -S ./src
 
 } || exit 1
 
-NCPU=8
-uname -s | grep -i "linux" > /dev/null && NCPU=`cat /proc/cpuinfo | grep -c -i processor`
+mkdir -p staging-openttd-$VER-$1
 
-make -C openttd-$VER-$1 -j$NCPU VERBOSE=1 STRIP='' && cp -f openttd-$VER-$1/libapplication.so libapplication-$1.so || exit 1
+set -e
 
+${CMAKE_BIN_LOC}cmake --build openttd-$VER-$1 --verbose;
+${CMAKE_BIN_LOC}cmake --install openttd-$VER-$1 --prefix ./staging-openttd-$VER-$1;
+cp staging-openttd-$VER-$1/games/libapplication.so libapplication-$1.so;
+mkdir -p ./data
+cp -r staging-openttd-$VER-$1/share/games/application/* data/
+./pack-data.sh "${ARCH}"
+
+set +e

@@ -11,7 +11,7 @@ ICONV := $(foreach ARCH, $(ARCH_LIST), iconv/lib/$(ARCH)/libiconv.so iconv/lib/$
 ICU_LIBS := icudata icui18n icuio icutest icutu icuuc iculx icu-le-hb
 ICU := $(foreach ARCH, $(ARCH_LIST), $(foreach NAME, $(ICU_LIBS), icuuc/lib/$(ARCH)/lib$(NAME).a))
 
-OPENSSL := $(foreach ARCH, $(ARCH_LIST), openssl/lib-$(ARCH)/libcrypto.so.sdl.1.so openssl/lib-$(ARCH)/libssl.so.sdl.1.so)
+OPENSSL := $(foreach ARCH, $(ARCH_LIST), openssl/lib/$(ARCH)/libcrypto.so.sdl.1.so openssl/lib/$(ARCH)/libssl.so.sdl.1.so)
 
 BOOST_LIBS := \
 	atomic \
@@ -51,13 +51,13 @@ BOOST_LIBS := \
 	wserialization \
 
 
-BOOST := $(foreach ARCH, $(ARCH_LIST), $(foreach NAME, $(BOOST_LIBS), boost/lib/$(ARCH)/libboost_$(NAME).a))
+BOOST := $(foreach ARCH, $(ARCH_LIST), $(foreach NAME, $(strip $(BOOST_LIBS)), boost/lib/$(ARCH)/libboost_$(NAME).a))
 
 .PHONY: all boost icu openssl
 
 all: $(ICONV) $(ICU) $(OPENSSL) $(BOOST)
 
-boost: $(BOOST)
+boost: $(BOOST) $(foreach NAME, $(strip $(BOOST_LIBS)), boost_$(NAME))
 
 icu: $(ICONV) $(ICU)
 
@@ -66,12 +66,14 @@ openssl: $(OPENSSL)
 $(ICONV) $(ICU): iconv/src/build.sh
 	cd iconv/src && \
 	for ARCH in $(ARCH_LIST); do \
-		env ARCHS=$$ARCH ./build.sh && \
+		$(shell echo "#=Compiling iconv for $$ARCH") \
+		env ARCHS=$$ARCH PATH=$(PATH):${ANDROID_NDK_HOME} ./build.sh && \
 		mkdir -p ../lib/$$ARCH ../include ; \
 		cp -f $$ARCH/libiconv.so $$ARCH/libcharset.so ../lib/$$ARCH/  ; \
 		cp -f $$ARCH/include/*.h ../include/  ; \
 		mkdir -p ../../icuuc/lib/$$ARCH ../../icuuc/include/unicode ../../icuuc/include/layout  ; \
 		cp -f $$ARCH/libicu*.a ../../icuuc/lib/$$ARCH/  ; \
+		[ -d ../../icuuc/share ] || cp -rf $$ARCH/share ../../icuuc/  ; \
 		cp -f $$ARCH/include/unicode/*.h ../../icuuc/include/unicode/  ; \
 		cp -f $$ARCH/include/layout/*.h ../../icuuc/include/layout/  ; \
 		cp -f $$ARCH/include/icu-le-hb/layout/*.h ../../icuuc/include/layout/  ; \
@@ -86,10 +88,12 @@ $(BOOST): boost/src/build-android.sh
 	./build-android.sh --boost=1.78.0 --with-iconv --target-version=16 --arch=$(shell echo $(foreach ARCH, $(ARCH_LIST),$(ARCH),) | tr -d ' ') && \
 	for ARCH in $(ARCH_LIST); do  \
 		mkdir -p ../lib/$$ARCH ../include ; \
-		$(foreach NAME, $(BOOST_LIBS), cp -f build/out/$$ARCH/lib/libboost_$(NAME)-clang-mt-*.a ../lib/$$ARCH/libboost_$(NAME).a || exit 1 ;) \
+		$(foreach NAME, $(strip $(BOOST_LIBS)), cp -f build/out/$$ARCH/lib/libboost_$(NAME)-clang-mt-*.a ../lib/$$ARCH/libboost_$(NAME).a || exit 1 ;) \
 		cp -r -f build/out/$$ARCH/include/boost-*/* ../include/ || exit 1 ; \
-	done || exit 1 ; \
-	$(foreach NAME, $(BOOST_LIBS), ln -sf boost ../../boost_$(NAME) ;)
+	done || exit 1
+
+$(foreach NAME, $(strip $(BOOST_LIBS)), boost_$(NAME)):
+	ln -sf boost $@
 
 iconv/src/build.sh boost/src/build-android.sh:
 	git submodule update --init --recursive
@@ -113,4 +117,4 @@ $(foreach ARCH, $(ARCH_LIST), $(foreach NAME, libiconv.so libcharset.so, $(eval 
 
 $(foreach ARCH, $(ARCH_LIST), $(foreach NAME, $(ICU_LIBS), $(eval $(call COPY_TO_OBJ,$(ARCH),icuuc/lib/$(ARCH),lib$(NAME).a))))
 
-$(foreach ARCH, $(ARCH_LIST), $(foreach NAME, libcrypto.so.sdl.1.so libssl.so.sdl.1.so, $(eval $(call COPY_TO_OBJ,$(ARCH),openssl/lib-$(ARCH),$(NAME)))))
+$(foreach ARCH, $(ARCH_LIST), $(foreach NAME, libcrypto.so.sdl.1.so libssl.so.sdl.1.so, $(eval $(call COPY_TO_OBJ,$(ARCH),openssl/lib/$(ARCH),$(NAME)))))
